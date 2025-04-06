@@ -1,28 +1,37 @@
-"use client"
+import React from "react"
+import { ModeToggle } from "@/components/mode-toggle"
+import { Github, Layers } from "lucide-react"
+import { Button } from "./ui/button"
+import Link from "next/link"
+import { Avatar, AvatarImage, AvatarFallback } from "./ui/avatar"
 
-import { ModeToggle } from "./mode-toggle";
-
-import { SidebarTrigger } from "./ui/sidebar";
-
-import { Button } from "./ui/button";
-import { Settings2 } from "lucide-react";
-import { usePathname } from "next/navigation";
-
-export default function Navbar() {
-    const pathname = usePathname();
+export function Navbar() {
     return (
-        <header className="border-b justify-between pr-4 flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
-            <div className="flex items-center gap-2 px-4">
-                <SidebarTrigger className="-ml-1" />
-                <h1 className="text-xl font-bold capitalize ">{pathname.split("/").pop()}</h1>
+        <div className="w-full  bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+            <div className="container flex h-14 max-w-screen-2xl items-center">
+                <div className="mr-4 flex">
+                    <Link className="mr-6 flex items-center space-x-2" href="/">
+                        <Layers className="w-4 h-4" />
+                        <h1 className="text-xl font-bold">
+                            TaskCoyy
+                        </h1>
+                    </Link>
+                </div>
+                <div className="flex flex-1 items-center justify-end space-x-2">
+                    <div className="flex items-center space-x-2">
+                        <Link href="https://github.com/taskcoyy">
+                            <Button variant="ghost" size="icon">
+                                <Github className="w-4 h-4" />
+                            </Button>
+                        </Link>
+                        <ModeToggle />
+                        <Avatar className="h-8 w-8">
+                            <AvatarImage src="https://github.com/shadcn.png" />
+                            <AvatarFallback>TC</AvatarFallback>
+                        </Avatar>
+                    </div>
+                </div>
             </div>
-            <div className="flex items-center gap-2">
-                <Button variant="ghost">
-                    View <Settings2 />
-                </Button>
-                <ModeToggle />
-
-            </div>
-        </header>
-    );
+        </div>
+    )
 }

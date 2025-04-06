@@ -5,12 +5,11 @@ import {
     Calendar as CalendarIcon,
     X,
     Sun,
-    Sunrise,
     CalendarDays,
-    CalendarRange,
-    Clock
+    Moon,
+    Star
 } from "lucide-react"
-import { addDays, addWeeks, addMonths, startOfDay } from "date-fns"
+import { addDays, addWeeks, addMonths, startOfDay, format } from "date-fns"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import {
@@ -19,44 +18,53 @@ import {
     PopoverTrigger,
 } from "@/components/ui/popover"
 import { TimePicker } from "@/components/time-picker"
+import { cn } from "@/lib/utils"
 
-interface QuickDatePickerProps {
-    date: Date | undefined
+export function QuickDatePicker({
+    date,
+    setDate,
+    onSelect,
+}: {
+    date?: Date
     setDate: (date: Date | undefined) => void
-}
-
-export function QuickDatePicker({ date, setDate }: QuickDatePickerProps) {
+    onSelect?: (date: Date) => void
+}) {
     const [isOpen, setIsOpen] = useState(false)
     const [time, setTime] = useState<string>()
+
+    const getDatePreview = () => {
+        if (!date) return "Today"
+        return format(date, "MMM d")
+    }
+
+    const handleSelect = (selectedDate: Date | undefined) => {
+        setDate(selectedDate || new Date())
+        if (onSelect) {
+            onSelect(selectedDate || new Date())
+        }
+        setIsOpen(false)
+    }
 
     const quickOptions = [
         {
             label: "Today",
             icon: Sun,
-            action: () => setDate(startOfDay(new Date())),
+            action: () => handleSelect(startOfDay(new Date())),
         },
         {
             label: "Tomorrow",
-            icon: Sunrise,
-            action: () => setDate(startOfDay(addDays(new Date(), 1))),
+            icon: Moon,
+            action: () => handleSelect(startOfDay(addDays(new Date(), 1))),
         },
         {
             label: "Next Week",
             icon: CalendarDays,
-            action: () => setDate(startOfDay(addWeeks(new Date(), 1))),
+            action: () => handleSelect(startOfDay(addWeeks(new Date(), 1))),
         },
         {
             label: "Next Month",
-            icon: CalendarRange,
-            action: () => setDate(startOfDay(addMonths(new Date(), 1))),
-        },
-        {
-            label: "No Date",
-            icon: X,
-            action: () => {
-                setDate(undefined)
-                setTime(undefined)
-            },
+            icon: Star,
+            action: () => handleSelect(startOfDay(addMonths(new Date(), 1))),
         },
     ]
 
@@ -65,10 +73,14 @@ export function QuickDatePicker({ date, setDate }: QuickDatePickerProps) {
             <PopoverTrigger asChild>
                 <Button
                     variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
+                    size="sm"
+                    className={cn(
+                        "h-8 px-2 gap-1",
+                        date && "text-blue-500"
+                    )}
                 >
                     <CalendarIcon className="h-4 w-4" />
+                    <span className="text-xs">{getDatePreview()}</span>
                 </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="end">
@@ -77,29 +89,27 @@ export function QuickDatePicker({ date, setDate }: QuickDatePickerProps) {
                         <Calendar
                             mode="single"
                             selected={date}
-                            onSelect={setDate}
+                            onSelect={handleSelect}
                             initialFocus
                         />
-                        {date && (
-                            <div className="mt-2 flex items-center gap-2">
-                                <TimePicker time={time} setTime={setTime} />
-                            </div>
-                        )}
+                        <div className="mt-2 flex items-center gap-2">
+                            <TimePicker time={time} setTime={setTime} />
+                        </div>
                     </div>
-                    <div className="flex flex-col gap-1 p-2 border-l">
+                    <div className="flex flex-col gap-7 pt-9 border-l">
                         {quickOptions.map((option) => (
                             <Button
                                 key={option.label}
-                                variant="ghost"
+                                variant="link"
                                 size="sm"
-                                className="flex items-center gap-2 h-auto px-3 py-2"
+                                className="flex flex-col hover:cursor-pointer items-center gap-1 hover:no-underline"
                                 onClick={() => {
                                     option.action()
                                     setIsOpen(false)
                                 }}
                             >
-                                <option.icon className="h-4 w-4" />
-                                <span className="text-sm">
+                                <option.icon className="h-2 w-2" />
+                                <span className="text-[10px] text-muted-foreground">
                                     {option.label}
                                 </span>
                             </Button>

@@ -1,10 +1,13 @@
-
+import TaskInputForm from "@/components/todo-form"
+import { Navbar } from "@/components/navbar"
 
 export default function Home() {
   return (
-    <div className="flex flex-col items-center justify-center h-screen">
-      <h1 className="text-4xl font-bold">TaskWoy</h1>
-      <p className="text-lg">Your tasks, your way</p>
-    </div>
-  );
+    <main className="flex min-h-screen flex-col">
+      <Navbar />
+      <div className="container flex-1 py-6">
+        <TaskInputForm />
+      </div>
+    </main>
+  )
 }
