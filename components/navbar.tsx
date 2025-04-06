@@ -7,7 +7,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "./ui/avatar"
 
 export function Navbar() {
     return (
-        <div className="w-full  bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="w-full px-5  lg:px-10  bg-card border-b">
             <div className="container flex h-14 max-w-screen-2xl items-center">
                 <div className="mr-4 flex">
                     <Link className="mr-6 flex items-center space-x-2" href="/">

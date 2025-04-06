@@ -20,7 +20,7 @@ interface TimePickerProps {
     setTime: (time: string | undefined) => void
 }
 
-export function     TimePicker({ time, setTime }: TimePickerProps) {
+export function TimePicker({ time, setTime }: TimePickerProps) {
     const [open, setOpen] = React.useState(false)
 
     // Generate time options from 00:00 to 23:30 with 30-minute intervals
@@ -83,7 +83,7 @@ export function     TimePicker({ time, setTime }: TimePickerProps) {
                         ) : (
                             <>
                                 <Clock className="h-4 w-4" />
-                                <span>Time</span>
+                                <span>Pilih Waktu</span>
                             </>
                         )}
                     </div>

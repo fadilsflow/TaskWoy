@@ -1,15 +1,16 @@
 "use client"
 
-import React, { useState, useRef, useEffect } from "react"
+import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ArrowUp, Bell, Grab } from "lucide-react"
 import { QuickDatePicker } from "@/components/quick-date-picker"
 import { cn } from "@/lib/utils"
+import { startOfDay } from "date-fns"
 
 // Tipe data
-type TaskStatus = "pending" | "in_progress" | "completed"
+type TaskStatus = "pending" | "in_progress" | "completed" | "archived"
 
 interface Todo {
     id: string
@@ -20,42 +21,62 @@ interface Todo {
 
 interface TodoFormProps { }
 
-// Komponen untuk menampilkan indikator multi-drag
-const MultiDragIndicator = () => (
-    <div className="absolute top-0 right-0 -mt-2 -mr-2 bg-primary text-primary-foreground text-xs font-bold rounded-full flex items-center justify-center p-1 shadow-md w-6 h-6">
-        <Grab className="h-3 w-3" />
-    </div>
-)
 
 // Komponen untuk menampilkan konten todo item
-const TodoItemContent = ({ todo, selectedTodos }: { todo: Todo; selectedTodos: string[] }) => (
-    <>
-        <div className="flex items-center gap-2">
-            <span className={cn(
-                "text-sm flex-1",
-                todo.status === "completed" && "line-through text-muted-foreground"
-            )}>
-                {todo.text}
-            </span>
-            {selectedTodos.includes(todo.id) && selectedTodos.length > 1 && (
-                <div className="px-1.5 py-0.5 bg-primary/10 text-primary text-xs rounded-full">
-                    {selectedTodos.indexOf(todo.id) + 1}/{selectedTodos.length}
+const TodoItemContent = ({ todo, selectedTodos }: { todo: Todo; selectedTodos: string[] }) => {
+    // Pastikan todo.date adalah objek Date yang valid
+    const dateObj = todo.date ? new Date(todo.date) : null;
+
+    // Cek apakah waktu adalah waktu default (00:00) atau waktu yang dipilih pengguna
+    const hasCustomTime = dateObj && !isNaN(dateObj.getTime()) &&
+        (dateObj.getHours() > 0 || dateObj.getMinutes() > 0);
+
+    return (
+        <>
+            <div className="flex items-center gap-2">
+                <span className={cn(
+                    "text-sm flex-1",
+                    todo.status === "completed" && "line-through text-muted-foreground"
+                )}>
+                    {todo.text}
+                </span>
+                {selectedTodos.includes(todo.id) && selectedTodos.length > 1 && (
+                    <div className="px-1.5 py-0.5 bg-primary/10 text-primary text-xs rounded-full">
+                        {selectedTodos.indexOf(todo.id) + 1}/{selectedTodos.length}
+                    </div>
+                )}
+            </div>
+            {dateObj && (
+                <div className="mt-1 text-xs text-muted-foreground flex items-center gap-1">
+                    <Bell className="w-4 h-4" />
+                    <div className="flex items-center gap-1">
+                        {dateObj.toLocaleDateString('id-ID', {
+                            weekday: 'long',
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric'
+                        })}
+                        {hasCustomTime && (
+                            <>
+                                <span className="mx-1">•</span>
+                                <div className="flex items-center gap-1">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+                                        <circle cx="12" cy="12" r="10"></circle>
+                                        <polyline points="12 6 12 12 16 14"></polyline>
+                                    </svg>
+                                    {dateObj.toLocaleTimeString('id-ID', {
+                                        hour: '2-digit',
+                                        minute: '2-digit'
+                                    })}
+                                </div>
+                            </>
+                        )}
+                    </div>
                 </div>
             )}
-        </div>
-        {todo.date && (
-            <div className="mt-1 text-xs text-muted-foreground flex items-center gap-1">
-                <Bell className="w-4 h-4" />
-                {new Date(todo.date).toLocaleDateString('id-ID', {
-                    weekday: 'long',
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric'
-                })}
-            </div>
-        )}
-    </>
-)
+        </>
+    );
+};
 
 // Komponen untuk menampilkan kolom todo
 const TodoColumn = ({
@@ -64,7 +85,8 @@ const TodoColumn = ({
     todos,
     onTodoSelect,
     selectedTodos,
-    isDraggingMultiple
+    isDraggingMultiple,
+    onArchiveAll
 }: {
     title: string
     status: TaskStatus
@@ -72,18 +94,30 @@ const TodoColumn = ({
     onTodoSelect: (todoId: string, event: React.MouseEvent) => void
     selectedTodos: string[]
     isDraggingMultiple: boolean
+    onArchiveAll?: () => void
 }) => (
-    <div className="bg-card rounded-lg flex flex-col min-w-[300px] h-[300px] sm:h-[400px] border shadow-sm">
-        <div className="p-2 sm:p-3 border-b">
+    <div className="bg-card rounded-lg flex flex-col min-w-[300px] h-[calc(110vh-16rem)] sm:h-[calc(110vh-18rem)] border shadow-sm">
+        <div className="p-2 sm:p-3 border-b flex justify-between items-center">
             <h3 className="text-xs sm:text-sm font-medium text-foreground flex items-center gap-2">
                 <span className={cn(
                     "w-2 h-2 rounded-full animate-pulse",
                     status === "pending" && "bg-red-700",
                     status === "in_progress" && "bg-yellow-700",
-                    status === "completed" && "bg-emerald-700"
+                    status === "completed" && "bg-emerald-700",
+                    status === "archived" && "bg-gray-700"
                 )}></span>
                 {title}
             </h3>
+            {status === "completed" && onArchiveAll && (
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={onArchiveAll}
+                    className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                >
+                    Arsipkan Semua
+                </Button>
+            )}
         </div>
         <div className="p-2 sm:p-3 flex-1 overflow-hidden">
             <Droppable droppableId={status}>
@@ -91,7 +125,7 @@ const TodoColumn = ({
                     <div
                         ref={provided.innerRef}
                         {...provided.droppableProps}
-                        className="h-full overflow-y-auto space-y-2"
+                        className="h-full overflow-y-auto scrollbar-hide"
                     >
                         {todos.map((todo, index) => (
                             <Draggable
@@ -106,10 +140,9 @@ const TodoColumn = ({
                                         {...provided.dragHandleProps}
                                         onClick={(e) => onTodoSelect(todo.id, e)}
                                         className={cn(
-                                            "flex flex-col p-2 md:p-3 rounded-lg transition-all duration-200",
-                                            "bg-card border shadow-sm",
-                                            "hover:bg-accent/50 hover:shadow-md",
-                                            "active:scale-[0.98]",
+                                            "flex flex-col p-2 md:p-3 rounded-lg ",
+                                            "bg-card border-b",
+                                            "hover:bg-accent/50 hover:shadow-md shadow-sm",
                                             selectedTodos.includes(todo.id) && "bg-primary/5 border-primary/20",
                                             snapshot.isDragging && "opacity-75 shadow-lg"
                                         )}
@@ -119,7 +152,6 @@ const TodoColumn = ({
                                         }}
                                     >
                                         <TodoItemContent todo={todo} selectedTodos={selectedTodos} />
-                                        {isDraggingMultiple && selectedTodos.includes(todo.id) && <MultiDragIndicator />}
                                     </div>
                                 )}
                             </Draggable>
@@ -140,6 +172,7 @@ export default function TaskInputForm({ }: TodoFormProps) {
     const [lastSelectedId, setLastSelectedId] = useState<string | null>(null)
     const [isDraggingMultiple, setIsDraggingMultiple] = useState(false)
     const formRef = useRef<HTMLFormElement>(null)
+    const scrollContainerRef = useRef<HTMLDivElement>(null)
 
     // Load todos from localStorage
     useEffect(() => {
@@ -159,31 +192,31 @@ export default function TaskInputForm({ }: TodoFormProps) {
         localStorage.setItem("todos", JSON.stringify(todos))
     }, [todos])
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = useCallback((e: React.FormEvent) => {
         e.preventDefault()
         if (task.trim()) {
             const newTodo: Todo = {
                 id: Date.now().toString(),
                 text: task.trim(),
                 status: "pending",
-                date: date || new Date(),
+                date: date || startOfDay(new Date()),
             }
-            setTodos([...todos, newTodo])
+            setTodos(prevTodos => [...prevTodos, newTodo])
             setTask("")
             setDate(undefined)
         }
-    }
+    }, [task, date])
 
-    const handleDateSelect = (selectedDate: Date) => {
+    const handleDateSelect = useCallback((selectedDate: Date) => {
         setDate(selectedDate)
-    }
+    }, [])
 
-    const handleDragStart = (start: any) => {
+    const handleDragStart = useCallback((start: any) => {
         const draggedId = start.draggableId
         setIsDraggingMultiple(selectedTodos.includes(draggedId) && selectedTodos.length > 1)
-    }
+    }, [selectedTodos])
 
-    const handleDragEnd = (result: any) => {
+    const handleDragEnd = useCallback((result: any) => {
         setIsDraggingMultiple(false)
 
         if (!result.destination) return
@@ -194,77 +227,112 @@ export default function TaskInputForm({ }: TodoFormProps) {
 
         // Jika dragging item yang dipilih
         if (isSelectedItemDragged && selectedTodos.length > 1) {
-            // Buat map posisi saat ini
-            const todoPositions = new Map<string, number>();
+            setTodos(prevTodos => {
+                // Buat map posisi saat ini
+                const todoPositions = new Map<string, number>();
 
-            // Dapatkan semua todo di status tujuan
-            const destStatusTodos = todos.filter(todo =>
-                todo.status === destination.droppableId &&
-                !selectedTodos.includes(todo.id)
-            );
+                // Dapatkan semua todo di status tujuan
+                const destStatusTodos = prevTodos.filter(todo =>
+                    todo.status === destination.droppableId &&
+                    !selectedTodos.includes(todo.id)
+                );
 
-            // Atur posisi untuk setiap item di tujuan
-            destStatusTodos.forEach((todo, index) => {
-                const position = index >= destination.index ?
-                    index + selectedTodos.length :
-                    index;
-                todoPositions.set(todo.id, position);
+                // Atur posisi untuk setiap item di tujuan
+                destStatusTodos.forEach((todo, index) => {
+                    const position = index >= destination.index ?
+                        index + selectedTodos.length :
+                        index;
+                    todoPositions.set(todo.id, position);
+                });
+
+                // Update status todo yang dipilih
+                const selectedTodosList = prevTodos.filter(todo => selectedTodos.includes(todo.id));
+                selectedTodosList.forEach((todo, index) => {
+                    todo.status = destination.droppableId as TaskStatus;
+                    todoPositions.set(todo.id, destination.index + index);
+                });
+
+                // Update todo lainnya
+                const otherTodos = prevTodos.filter(todo =>
+                    !selectedTodos.includes(todo.id) &&
+                    todo.status !== destination.droppableId
+                );
+
+                // Buat array baru dengan semua todo
+                const newTodosArray = [...otherTodos, ...destStatusTodos, ...selectedTodosList];
+
+                // Urutkan array berdasarkan status dan posisi
+                newTodosArray.sort((a, b) => {
+                    if (a.status !== b.status) {
+                        return a.status.localeCompare(b.status);
+                    }
+
+                    const posA = todoPositions.get(a.id) ?? 0;
+                    const posB = todoPositions.get(b.id) ?? 0;
+                    return posA - posB;
+                });
+
+                return newTodosArray;
             });
 
-            // Update status todo yang dipilih
-            const selectedTodosList = todos.filter(todo => selectedTodos.includes(todo.id));
-            selectedTodosList.forEach((todo, index) => {
-                todo.status = destination.droppableId as TaskStatus;
-                todoPositions.set(todo.id, destination.index + index);
-            });
-
-            // Update todo lainnya
-            const otherTodos = todos.filter(todo =>
-                !selectedTodos.includes(todo.id) &&
-                todo.status !== destination.droppableId
-            );
-
-            // Buat array baru dengan semua todo
-            const newTodosArray = [...otherTodos, ...destStatusTodos, ...selectedTodosList];
-
-            // Urutkan array berdasarkan status dan posisi
-            newTodosArray.sort((a, b) => {
-                if (a.status !== b.status) {
-                    return a.status.localeCompare(b.status);
-                }
-
-                const posA = todoPositions.get(a.id) ?? 0;
-                const posB = todoPositions.get(b.id) ?? 0;
-                return posA - posB;
-            });
-
-            setTodos(newTodosArray);
             setSelectedTodos([]); // Hapus seleksi setelah pindah
             return;
         }
 
         // Logika drag item tunggal
-        if (source.droppableId === destination.droppableId) {
-            const items = Array.from(todos)
-            const [reorderedItem] = items.splice(source.index, 1)
-            items.splice(destination.index, 0, reorderedItem)
-            setTodos(items)
-        } else {
-            const sourceTodos = todos.filter(todo => todo.status === source.droppableId)
-            const destTodos = todos.filter(todo => todo.status === destination.droppableId)
-            const [movedItem] = sourceTodos.splice(source.index, 1)
-            movedItem.status = destination.droppableId as TaskStatus
-            destTodos.splice(destination.index, 0, movedItem)
+        setTodos(prevTodos => {
+            const todosCopy = [...prevTodos]
 
-            const newTodos = todos.filter(todo =>
-                todo.status !== source.droppableId &&
-                todo.status !== destination.droppableId
-            )
-            setTodos([...newTodos, ...sourceTodos, ...destTodos])
-        }
-    }
+            if (source.droppableId === destination.droppableId) {
+                // Jika dalam card yang sama, urutkan ulang
+                const sourceTodos = todosCopy.filter(todo => todo.status === source.droppableId);
 
-    const handleTodoSelect = (todoId: string, event: React.MouseEvent) => {
+                // Pastikan sourceTodos tidak kosong dan index valid
+                if (sourceTodos.length === 0 || source.index >= sourceTodos.length) {
+                    return todosCopy;
+                }
+
+                // Temukan item yang akan dipindahkan
+                const movedItem = sourceTodos[source.index];
+
+                // Hapus item dari posisi asal
+                sourceTodos.splice(source.index, 1);
+
+                // Pastikan destination.index valid
+                const validDestIndex = Math.min(destination.index, sourceTodos.length);
+
+                // Masukkan item ke posisi baru
+                sourceTodos.splice(validDestIndex, 0, movedItem);
+
+                // Gabungkan dengan todo lainnya
+                const otherTodos = todosCopy.filter(todo => todo.status !== source.droppableId);
+                return [...otherTodos, ...sourceTodos];
+            } else {
+                // Jika pindah ke card lain
+                const sourceTodos = todosCopy.filter(todo => todo.status === source.droppableId);
+                const destTodos = todosCopy.filter(todo => todo.status === destination.droppableId);
+
+                if (sourceTodos.length === 0 || source.index >= sourceTodos.length) {
+                    return todosCopy;
+                }
+
+                const movedItem = sourceTodos[source.index];
+                sourceTodos.splice(source.index, 1);
+
+                const updatedItem = { ...movedItem, status: destination.droppableId as TaskStatus };
+                const validDestIndex = Math.min(destination.index, destTodos.length);
+                destTodos.splice(validDestIndex, 0, updatedItem);
+
+                const newTodos = todosCopy.filter(todo =>
+                    todo.status !== source.droppableId &&
+                    todo.status !== destination.droppableId
+                );
+                return [...newTodos, ...sourceTodos, ...destTodos];
+            }
+        });
+    }, [selectedTodos])
+
+    const handleTodoSelect = useCallback((todoId: string, event: React.MouseEvent) => {
         // Mencegah seleksi saat mengklik handle drag
         if (event.target instanceof Element && event.target.closest('[data-drag-handle="true"]')) {
             return
@@ -326,26 +394,40 @@ export default function TaskInputForm({ }: TodoFormProps) {
         }
 
         setLastSelectedId(todoId)
-    }
+    }, [todos, lastSelectedId])
 
-    // Kelompokkan todo berdasarkan status
-    const groupedTodos = {
+    const handleArchiveAllCompleted = useCallback(() => {
+        setTodos(prevTodos => {
+            return prevTodos.map(todo => {
+                if (todo.status === "completed") {
+                    return { ...todo, status: "archived" as TaskStatus };
+                }
+                return todo;
+            });
+        });
+    }, []);
+
+    // Kelompokkan todo berdasarkan status menggunakan useMemo untuk menghindari perhitungan ulang yang tidak perlu
+    const groupedTodos = useMemo(() => ({
         pending: todos.filter(todo => todo.status === "pending"),
         in_progress: todos.filter(todo => todo.status === "in_progress"),
         completed: todos.filter(todo => todo.status === "completed"),
-    }
+        archived: todos.filter(todo => todo.status === "archived"),
+    }), [todos]);
 
     return (
-        <div className="w-full max-w-full flex flex-col px-2 sm:px-4 md:px-0">
+        <div className="w-full max-w-full flex flex-col h-full">
             {/* Todo List Card */}
-            <div className="flex-1 overflow-hidden">
+            <div className="flex-1 overflow-hidden min-h-[calc(100vh-12rem)]">
                 <DragDropContext
                     onDragStart={handleDragStart}
                     onDragEnd={handleDragEnd}
                 >
-                    {/* Mobile view: horizontal scrollable columns */}
-                    <div className="overflow-x-auto pb-4">
-                        <div className="flex md:grid md:grid-cols-3 gap-4 min-w-full" style={{ minWidth: "max-content" }}>
+                    <div
+                        ref={scrollContainerRef}
+                        className="overflow-x-auto pb-4 h-full scrollbar-hide touch-pan-x"
+                    >
+                        <div className="flex md:grid md:grid-cols-3 gap-4 min-w-full h-full" style={{ minWidth: "max-content" }}>
                             <TodoColumn
                                 title="Belum Dikerjakan"
                                 status="pending"
@@ -369,6 +451,7 @@ export default function TaskInputForm({ }: TodoFormProps) {
                                 onTodoSelect={handleTodoSelect}
                                 selectedTodos={selectedTodos}
                                 isDraggingMultiple={isDraggingMultiple}
+                                onArchiveAll={handleArchiveAllCompleted}
                             />
                         </div>
                     </div>
@@ -376,9 +459,9 @@ export default function TaskInputForm({ }: TodoFormProps) {
             </div>
 
             {/* Todo Form */}
-            <form ref={formRef} onSubmit={handleSubmit} className="w-full mt-2 sm:mt-4 mb-2 sm:mb-4">
+            <form ref={formRef} onSubmit={handleSubmit} className="w-full mt-auto">
                 <div className="flex flex-col border rounded-lg shadow-sm bg-card">
-                    <div className="flex items-center gap-2 p-2 sm:p-3">
+                    <div className="flex items-center gap-2 p-3 sm:p-4">
                         <div className="relative flex-1 flex items-center">
                             <Input
                                 type="text"
